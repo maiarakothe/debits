@@ -1,0 +1,29 @@
+from fastapi import FastAPI
+
+from database import Base, engine
+
+from routers.auth import router as auth_router
+from routers.clients import router as clients_router
+from routers.debits import router as debits_router
+
+app = FastAPI(
+    title="API de Clientes e Débitos",
+    description="API para gerenciamento de clientes e débitos com autenticação",
+    version="1.0.0",
+)
+
+
+app.include_router(auth_router)
+app.include_router(clients_router)
+app.include_router(debits_router)
+
+
+@app.on_event("startup")
+async def startup():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
+@app.get("/")
+async def root():
+    return {"message": "API funcionando!"}

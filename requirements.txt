@@ -1,0 +1,9 @@
+fastapi~=0.141.1
+uvicorn[standard]
+sqlalchemy>=2.0
+pydantic>=2
+passlib[bcrypt]~=1.7.4
+python-jose[cryptography]
+python-multipart # necessário para o form do /login
+
+python-dotenv~=1.2.3
