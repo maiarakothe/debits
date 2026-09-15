@@ -9,7 +9,8 @@ from sqlalchemy import (
     Date,
     ForeignKey,
     Boolean,
-    Numeric, String,
+    Numeric,
+    String,
 )
 
 
