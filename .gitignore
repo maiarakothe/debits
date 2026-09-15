@@ -2,3 +2,7 @@
 /shelf/
 /workspace.xml
 .env
+.idea/
+__pycache__/
+*.py[cod]
+.venv/
