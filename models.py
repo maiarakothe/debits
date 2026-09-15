@@ -9,14 +9,14 @@ from sqlalchemy import (
     Date,
     ForeignKey,
     Boolean,
-    Numeric,
+    Numeric, String,
 )
 
 
 class User(Base):
     __tablename__ = "User"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    email: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     hashed_password: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.now
