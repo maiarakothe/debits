@@ -1,11 +1,13 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from deps import get_current_user
 from models import User, Client, Debit
-from schemas import DebitCreate, DebitRead
+from schemas import DebitCreate, DebitRead, FinancialSummary
 
 router = APIRouter(tags=["Debits"])
 
@@ -84,3 +86,47 @@ async def pay_debit(
     await db.commit()
     await db.refresh(debit)
     return debit
+
+
+@router.get("/financial-summary", response_model=FinancialSummary)
+async def financial_summary(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(
+            func.count(Debit.id),
+            func.coalesce(func.sum(Debit.amount), 0),
+            func.coalesce(
+                func.sum(case((Debit.paid.is_(True), Debit.amount), else_=0)),
+                0,
+            ),
+            func.coalesce(
+                func.sum(case((Debit.paid.is_(False), Debit.amount), else_=0)),
+                0,
+            ),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            Debit.paid.is_(False) & (Debit.due_date < date.today()),
+                            Debit.amount,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+        )
+        .join(Client)
+        .where(Client.owner_id == current_user.id)
+    )
+    total_debitos, total_valor, total_pago, total_pendente, total_vencido = result.one()
+
+    return FinancialSummary(
+        total_debitos=total_debitos,
+        total_valor=total_valor,
+        total_pago=total_pago,
+        total_pendente=total_pendente,
+        total_vencido=total_vencido,
+    )

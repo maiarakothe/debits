@@ -46,3 +46,11 @@ class DebitRead(BaseModel):
     due_date: date
     paid: bool
     model_config = ConfigDict(from_attributes=True)
+
+
+class FinancialSummary(BaseModel):
+    total_debitos: int = Field(example=0)
+    total_valor: Decimal = Field(example=0)
+    total_pago: Decimal = Field(example=0)
+    total_pendente: Decimal = Field(example=0)
+    total_vencido: Decimal = Field(example=0)
