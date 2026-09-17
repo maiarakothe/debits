@@ -1,7 +1,7 @@
 from io import BytesIO
 
 from openpyxl import Workbook
-from openpyxl.styles import Font, Alignment
+from openpyxl.styles import Font, Alignment, PatternFill
 
 
 def generate_clients_debits_excel(clients_data):
@@ -125,11 +125,31 @@ def generate_clients_debits_excel(clients_data):
 
     row += 1
 
+    # Cores dos resumos
+    fill_total = PatternFill(
+        fill_type="solid",
+        fgColor="D9EAF7",
+    )
+
+    fill_pago = PatternFill(
+        fill_type="solid",
+        fgColor="D9F2E6",
+    )
+
+    fill_pendente = PatternFill(
+        fill_type="solid",
+        fgColor="FCE4E4",
+    )
+
+    # Resumo
     sheet.cell(
         row=row,
         column=1,
         value="Resumo",
-    ).font = Font(bold=True)
+    ).font = Font(
+        bold=True,
+        size=14,
+    )
 
     row += 1
 
@@ -145,13 +165,19 @@ def generate_clients_debits_excel(clients_data):
         value=total,
     )
 
+    for column in range(1, 3):
+        sheet.cell(
+            row=row,
+            column=column,
+        ).fill = fill_total
+
     row += 1
 
     sheet.cell(
         row=row,
         column=1,
         value="Total pago",
-    )
+    ).font = Font(bold=True)
 
     sheet.cell(
         row=row,
@@ -159,19 +185,31 @@ def generate_clients_debits_excel(clients_data):
         value=total_pago,
     )
 
+    for column in range(1, 3):
+        sheet.cell(
+            row=row,
+            column=column,
+        ).fill = fill_pago
+
     row += 1
 
     sheet.cell(
         row=row,
         column=1,
         value="Total pendente",
-    )
+    ).font = Font(bold=True)
 
     sheet.cell(
         row=row,
         column=2,
         value=total_pendente,
     )
+
+    for column in range(1, 3):
+        sheet.cell(
+            row=row,
+            column=column,
+        ).fill = fill_pendente
 
     for current_row in range(row - 2, row + 1):
         sheet.cell(
