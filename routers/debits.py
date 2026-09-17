@@ -6,11 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from deps import get_current_user
+from services.excel_generator import generate_clients_debits_excel
 from models import User, Client, Debit
 from schemas import DebitCreate, DebitRead, FinancialSummary
 from fastapi.responses import StreamingResponse
 
-from pdf_generator import generate_client_debits_pdf
+from services.pdf_generator import generate_client_debits_pdf
 
 router = APIRouter(tags=["Debits"])
 
@@ -163,5 +164,55 @@ async def export_client_debits_pdf(
         media_type="application/pdf",
         headers={
             "Content-Disposition": f'attachment; filename="debitos_{client.id}.pdf"'
+        },
+    )
+
+
+@router.get("/clients/debits/excel")
+async def export_clients_debits_excel(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Client)
+        .where(
+            Client.owner_id == current_user.id,
+        )
+        .order_by(Client.name)
+    )
+
+    clients = result.scalars().all()
+
+    result = await db.execute(select(Debit).order_by(Debit.due_date))
+
+    debits = result.scalars().all()
+
+    debits_by_client = {}
+
+    for debit in debits:
+        debits_by_client.setdefault(
+            debit.client_id,
+            [],
+        ).append(debit)
+
+    clients_data = [
+        (
+            client,
+            debits_by_client.get(client.id, []),
+        )
+        for client in clients
+    ]
+
+    excel = generate_clients_debits_excel(
+        clients_data,
+    )
+
+    return StreamingResponse(
+        excel,
+        media_type=(
+            "application/vnd.openxmlformats-officedocument." "spreadsheetml.sheet"
+        ),
+        headers={
+            "Content-Disposition": ('attachment; filename="clientes_debitos.xlsx"')
         },
     )
