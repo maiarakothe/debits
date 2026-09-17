@@ -3,9 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from database import Base, engine
 
-from routers.auth import router as auth_router
-from routers.clients import router as clients_router
-from routers.debits import router as debits_router
+from routers import clients, debits, reports, auth
 
 app = FastAPI(
     title="API de Clientes e Débitos",
@@ -22,9 +20,10 @@ app.add_middleware(
 )
 
 
-app.include_router(auth_router)
-app.include_router(clients_router)
-app.include_router(debits_router)
+app.include_router(auth.router)
+app.include_router(clients.router)
+app.include_router(debits.router)
+app.include_router(reports.router)
 
 
 @app.on_event("startup")

@@ -6,12 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from deps import get_current_user
-from services.excel_generator import generate_clients_debits_excel
 from models import User, Client, Debit
 from schemas import DebitCreate, DebitRead, FinancialSummary
-from fastapi.responses import StreamingResponse
-
-from services.pdf_generator import generate_client_debits_pdf
 
 router = APIRouter(tags=["Debits"])
 
@@ -92,6 +88,82 @@ async def pay_debit(
     return debit
 
 
+@router.get("/debits/overdue", response_model=list[DebitRead])
+async def list_overdue_debits(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Debit)
+        .join(Client)
+        .where(
+            Client.owner_id == current_user.id,
+            Debit.paid.is_(False),
+            Debit.due_date < date.today(),
+        )
+        .order_by(Debit.due_date)
+    )
+    return result.scalars().all()
+
+
+@router.put("/debits/{debit_id}", response_model=DebitRead)
+async def update_debit(
+    debit_id: int,
+    debit_data: DebitCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Debit)
+        .join(Client)
+        .where(
+            Debit.id == debit_id,
+            Client.owner_id == current_user.id,
+        )
+    )
+    debit = result.scalar_one_or_none()
+    if debit is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Débito não encontrado",
+        )
+    debit.description = debit_data.description
+    debit.amount = debit_data.amount
+    debit.due_date = debit_data.due_date
+    debit.paid = debit_data.paid
+    await db.commit()
+    await db.refresh(debit)
+    return debit
+
+
+@router.delete(
+    "/debits/{debit_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_debit(
+    debit_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Debit)
+        .join(Client)
+        .where(
+            Debit.id == debit_id,
+            Client.owner_id == current_user.id,
+        )
+    )
+    debit = result.scalar_one_or_none()
+    if debit is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Débito não encontrado",
+        )
+
+    await db.delete(debit)
+    await db.commit()
+
+
 @router.get("/financial-summary", response_model=FinancialSummary)
 async def financial_summary(
     db: AsyncSession = Depends(get_db),
@@ -133,86 +205,4 @@ async def financial_summary(
         total_pago=total_pago,
         total_pendente=total_pendente,
         total_vencido=total_vencido,
-    )
-
-
-@router.get("/clients/{client_id}/debits/pdf")
-async def export_client_debits_pdf(
-    client_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    result = await db.execute(
-        select(Client).where(
-            Client.id == client_id,
-            Client.owner_id == current_user.id,
-        )
-    )
-    client = result.scalar_one_or_none()
-    if client is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cliente não encontrado",
-        )
-    result = await db.execute(
-        select(Debit).where(Debit.client_id == client_id).order_by(Debit.due_date)
-    )
-    debits = result.scalars().all()
-    pdf = generate_client_debits_pdf(client, debits)
-    return StreamingResponse(
-        pdf,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="debitos_{client.id}.pdf"'
-        },
-    )
-
-
-@router.get("/clients/debits/excel")
-async def export_clients_debits_excel(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    result = await db.execute(
-        select(Client)
-        .where(
-            Client.owner_id == current_user.id,
-        )
-        .order_by(Client.name)
-    )
-
-    clients = result.scalars().all()
-
-    result = await db.execute(select(Debit).order_by(Debit.due_date))
-
-    debits = result.scalars().all()
-
-    debits_by_client = {}
-
-    for debit in debits:
-        debits_by_client.setdefault(
-            debit.client_id,
-            [],
-        ).append(debit)
-
-    clients_data = [
-        (
-            client,
-            debits_by_client.get(client.id, []),
-        )
-        for client in clients
-    ]
-
-    excel = generate_clients_debits_excel(
-        clients_data,
-    )
-
-    return StreamingResponse(
-        excel,
-        media_type=(
-            "application/vnd.openxmlformats-officedocument." "spreadsheetml.sheet"
-        ),
-        headers={
-            "Content-Disposition": ('attachment; filename="clientes_debitos.xlsx"')
-        },
     )
