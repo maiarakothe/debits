@@ -8,3 +8,4 @@ python-multipart # necessário para o form do /login
 
 python-dotenv~=1.2.3
 mcp~=2.2.0
+reportlab

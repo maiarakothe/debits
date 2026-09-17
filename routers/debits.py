@@ -8,6 +8,9 @@ from database import get_db
 from deps import get_current_user
 from models import User, Client, Debit
 from schemas import DebitCreate, DebitRead, FinancialSummary
+from fastapi.responses import StreamingResponse
+
+from pdf_generator import generate_client_debits_pdf
 
 router = APIRouter(tags=["Debits"])
 
@@ -129,4 +132,36 @@ async def financial_summary(
         total_pago=total_pago,
         total_pendente=total_pendente,
         total_vencido=total_vencido,
+    )
+
+
+@router.get("/clients/{client_id}/debits/pdf")
+async def export_client_debits_pdf(
+    client_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Client).where(
+            Client.id == client_id,
+            Client.owner_id == current_user.id,
+        )
+    )
+    client = result.scalar_one_or_none()
+    if client is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cliente não encontrado",
+        )
+    result = await db.execute(
+        select(Debit).where(Debit.client_id == client_id).order_by(Debit.due_date)
+    )
+    debits = result.scalars().all()
+    pdf = generate_client_debits_pdf(client, debits)
+    return StreamingResponse(
+        pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="debitos_{client.id}.pdf"'
+        },
     )
